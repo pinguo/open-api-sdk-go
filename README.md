@@ -1,1 +1,1 @@
-# 旅拍开放平台 OPEN API Golang SDK
+# 旅拍开放平台 OPEN API Golang 签名 SDK
