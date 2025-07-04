@@ -1,4 +1,4 @@
-package sdk
+package sign
 
 const HeadKeyTimestamp = "PG-Timestamp"
 const HeadKeySign = "PG-Sign"
