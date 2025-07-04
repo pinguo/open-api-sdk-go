@@ -122,7 +122,11 @@ func (s *SignatureBuilder) buildSignatureFromIncomeRequest(ctx context.Context, 
 			queryParams[k] = v
 		}
 	}
-	ts := fmt.Sprintf("%d", time.Now().Unix())
+
+	ts := r.Header.Get(HeadKeyTimestamp)
+	if ts == "" {
+		ts = fmt.Sprintf("%d", time.Now().Unix())
+	}
 	path := r.URL.Path
 	finalText := fmt.Sprintf("%s%s%s%s", path, s.buildParamsSignatureText(queryParams, body), ts, s.secretKey)
 	sign := s.hash(finalText)
@@ -136,7 +140,7 @@ func (s *SignatureBuilder) buildSignatureFromIncomeRequest(ctx context.Context, 
 // 计算 MD5 哈希值
 func (s *SignatureBuilder) hash(text string) string {
 	hash := sha256.Sum256([]byte(text))
-	return fmt.Sprintf("SHA-256: %x", hash)
+	return fmt.Sprintf("%x", hash)
 }
 
 func (s *SignatureBuilder) buildParamsSignatureText(params map[string]string, body string) string {
