@@ -170,6 +170,9 @@ func (s *SignatureBuilder) getGETParams(r *http.Request) map[string]string {
 
 // 从 HTTP POST 请求中提取参数
 func (s *SignatureBuilder) getPOSTParams(r *http.Request) (string, map[string]string, error) {
+	if r.Body == nil {
+		return "", map[string]string{}, nil
+	}
 	const defaultContentType = "application/x-www-form-urlencoded"
 	ct := r.Header.Get("Content-Type")
 	if ct == "" {
