@@ -162,7 +162,7 @@ func (s *SignatureBuilder) getGETParams(r *http.Request) map[string]string {
 	params := make(map[string]string)
 	for key, values := range r.URL.Query() {
 		if len(values) > 0 {
-			params[key] = strings.Join(values, ",")
+			params[key] = values[0]
 		}
 	}
 	return params
