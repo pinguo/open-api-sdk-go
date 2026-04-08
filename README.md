@@ -1,4 +1,4 @@
-# 旅拍开放平台 OPEN API Golang 签名 SDK
+# OPEN API Golang 签名 SDK
 
 ## 签名算法说明
 
@@ -119,7 +119,7 @@ Sign = SHA256("/v1/photos/generatea=bd=cdata=a1712563200sk")
 POST /v1/photos/list?zone=cn&page=2
 Content-Type: application/json
 
-{"title":"旅拍","type":1}
+{"title":"测试","type":1}
 ```
 
 **参数：** AK = `ak`，SK = `sk`，Timestamp = `1712563200`
@@ -128,7 +128,7 @@ Content-Type: application/json
 
 ```
 Query 参数: zone=cn, page=2
-Body 原文:  {"title":"旅拍","type":1}
+Body 原文:  {"title":"测试","type":1}
 ```
 
 **Step 2** 仅对 Query 参数按字典序排序，拼接后追加 Body 原文：
@@ -137,21 +137,21 @@ Body 原文:  {"title":"旅拍","type":1}
 排序前: zone=cn, page=2   ← 原始顺序（无序）
 排序后: page=2,  zone=cn  ← 字典序升序（p < z）
 
-参数签名串 = "page=2" + "zone=cn" + {"title":"旅拍","type":1}
-           = "page=2zone=cn{\"title\":\"旅拍\",\"type\":1}"
+参数签名串 = "page=2" + "zone=cn" + {"title":"测试","type":1}
+           = "page=2zone=cn{\"title\":\"测试\",\"type\":1}"
 ```
 
 **Step 3** 构造最终签名串：
 
 ```
-finalText = "/v1/photos/list" + "page=2zone=cn{\"title\":\"旅拍\",\"type\":1}" + "1712563200" + "sk"
-          = "/v1/photos/listpage=2zone=cn{\"title\":\"旅拍\",\"type\":1}1712563200sk"
+finalText = "/v1/photos/list" + "page=2zone=cn{\"title\":\"测试\",\"type\":1}" + "1712563200" + "sk"
+          = "/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200sk"
 ```
 
 **Step 4** 计算签名：
 
 ```
-Sign = SHA256("/v1/photos/listpage=2zone=cn{\"title\":\"旅拍\",\"type\":1}1712563200sk")
+Sign = SHA256("/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200sk")
      = "64c73268fecb39f3c3d04a9831d9272ff206dcf68f24fa2cfc0163eeab6680f9"
 ```
 
