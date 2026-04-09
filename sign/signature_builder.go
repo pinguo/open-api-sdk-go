@@ -135,9 +135,10 @@ func (s *SignatureBuilder) buildSignatureFromIncomeRequest(ctx context.Context, 
     if ts == "" {
         ts = fmt.Sprintf("%d", time.Now().Unix())
     }
+    method := strings.ToUpper(r.Method)
     path := r.URL.Path
     headerText := s.buildHeaderSignatureText(r.Header)
-    finalText := fmt.Sprintf("%s%s%s%s%s", path, s.buildParamsSignatureText(queryParams, body), headerText, ts, s.accessKey)
+    finalText := fmt.Sprintf("%s%s%s%s%s%s", method, path, s.buildParamsSignatureText(queryParams, body), headerText, ts, s.accessKey)
     sign := s.hash(finalText)
     return &SignatureResult{
         Sign:      sign,

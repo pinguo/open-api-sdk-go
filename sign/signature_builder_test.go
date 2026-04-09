@@ -9,9 +9,9 @@ import (
 )
 
 func TestSigRequest(t *testing.T) {
-	sb := NewSignatureBuilder("ak", "sk", 3600)
-	body := strings.NewReader("a=b&d=c")
-	r, _ := http.NewRequest("POST", "https://api.open-platform.com/v1/photos/generate?data=a", body)
+    sb := NewSignatureBuilder("ak", "sk", 3600)
+    body := strings.NewReader("a=b&d=c")
+    r, _ := http.NewRequest("POST", "https://api.open-platform.com/v1/photos/generate?data=a", body)
 
 	ts, err := sb.SignRequest(context.Background(), r)
 	if err != nil {
@@ -46,6 +46,16 @@ func TestSigRequestWithHeaders(t *testing.T) {
     r.Header.Set("PG-Client", "android")
     if err := sb.ValidateRequest(context.Background(), r); err == nil {
         t.Fatalf("expected validation failure when PG-Client changed")
+    }
+
+    // change method should also change signature
+    r2, _ := http.NewRequest("POST", r.URL.String(), nil)
+    r2.Header = r.Header.Clone()
+    if _, err := sb.SignRequest(context.Background(), r2); err != nil {
+        t.Fatal(err)
+    }
+    if err := sb.ValidateRequest(context.Background(), r2); err != nil {
+        t.Fatalf("validate failed after re-sign with method POST: %v", err)
     }
 }
 

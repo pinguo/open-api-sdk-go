@@ -6,8 +6,8 @@
 
 | 参数             | 说明                  |
 | -------------- | ------------------- |
-| AccessKey (AK) | 平台分配的访问密钥           |
-| SecretKey (SK) | 平台分配的签名密钥，不可泄露      |
+| AccessKey (AK) | 平台分配的访问AccessKey           |
+| SecretKey (SK) | 平台分配的签名SecretKey，不可泄露      |
 | Timestamp      | Unix 时间戳（秒），用于防重放攻击 |
 
 ### HTTP 请求头
@@ -17,7 +17,7 @@
 | `PG-Timestamp` | Unix 时间戳（秒） |
 | `PG-AccessKey` | 访问密钥 AK     |
 | `PG-Sign`      | 请求/响应签名值    |
-| `PG-*`         | 以 `PG-` 开头的自定义头（参与请求签名，除上述三者外）|
+| `PG-*`         | 以 `PG-` 开头的自定义头参与构造header签名串（除上述三者外，这三个会直接在签名串中参与）|
 
 ***
 
@@ -59,10 +59,10 @@ key1=value1key2=value2...{json body}
 
 示例：`PG-Client: ios` 与 `PG-Trace-Id: abc` → `pg-client=iospg-trace-id=abc`
 
-**Step 4：构造最终签名串**
+**Step 4：构造最终签名串（请求）**
 
 ```
-finalText = URL路径 + 参数签名串 + Header签名串 + Timestamp + AccessKey
+finalText = HTTP方法 + URL路径 + 参数签名串 + Header签名串 + Timestamp + AccessKey
 ```
 
 **Step 5：计算签名（HMAC-SHA256）**
@@ -110,18 +110,18 @@ Form  参数: a=b, d=c
 参数签名串 = "a=b" + "d=c" + "data=a" = "a=bd=cdata=a"
 ```
 
-**Step 3-4** Header 签名串为空；构造最终签名串：
+**Step 3-4** Header 签名串为空；构造最终签名串（方法为 POST）：
 
 ```
-finalText = "/v1/photos/generate" + "a=bd=cdata=a" + "" + "1712563200" + "ak"
-          = "/v1/photos/generatea=bd=cdata=a1712563200ak"
+finalText = "POST" + "/v1/photos/generate" + "a=bd=cdata=a" + "" + "1712563200" + "ak"
+          = "POST/v1/photos/generatea=bd=cdata=a1712563200ak"
 ```
 
 **Step 5** 计算签名（HMAC-SHA256，key=sk）：
 
 ```
-Sign = HMAC_SHA256("/v1/photos/generatea=bd=cdata=a1712563200ak", "sk")
-     = "a7db995a4a7d86cf6997a4f1a74eb09968bf196187abd63d9f4010a2652d5896"
+Sign = HMAC_SHA256("POST/v1/photos/generatea=bd=cdata=a1712563200ak", "sk")
+     = "57f4761dbdaf2cd2624f6e88bdcc97416937f9c6a0e0874ea534915d3ade0556"
 ```
 
 ***
@@ -156,18 +156,18 @@ Body 原文:  {"title":"测试","type":1}
            = "page=2zone=cn{\"title\":\"测试\",\"type\":1}"
 ```
 
-**Step 3-4** Header 签名串为空；构造最终签名串：
+**Step 3-4** Header 签名串为空；构造最终签名串（方法为 POST）：
 
 ```
-finalText = "/v1/photos/list" + "page=2zone=cn{\"title\":\"测试\",\"type\":1}" + "" + "1712563200" + "ak"
-          = "/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200ak"
+finalText = "POST" + "/v1/photos/list" + "page=2zone=cn{\"title\":\"测试\",\"type\":1}" + "" + "1712563200" + "ak"
+          = "POST/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200ak"
 ```
 
 **Step 5** 计算签名（HMAC-SHA256，key=sk）：
 
 ```
-Sign = HMAC_SHA256("/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200ak", "sk")
-     = "9440db90014d121b52260cf29039a32114f5c5865c877d8becd5d662e6555274"
+Sign = HMAC_SHA256("POST/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200ak", "sk")
+     = "ea20e81a9fc109d9ffa96e7d43f5d28f6868ff93f2773ea1c2a78596e4c2a4cd"
 
 ### 示例三：包含 PG-* 业务头
 
@@ -182,9 +182,9 @@ PG-Trace-Id: abc
 Header 签名串：`pg-client=iospg-trace-id=abc`
 
 ```
-finalText = "/v1/test" + "" + "pg-client=iospg-trace-id=abc" + "1712563200" + "ak"
+finalText = "GET" + "/v1/test" + "" + "pg-client=iospg-trace-id=abc" + "1712563200" + "ak"
 Sign = HMAC_SHA256(finalText, "sk")
-     = "e274807a9b4dad9c67ffe1e637ab2e512e1712003798652a93d36617bd4f7f8b"
+     = "b55aae13568afb2c32b2b05794184c251cfed83ecd17b83dcd9cb0c16e2eea6e"
 ```
 ```
 
