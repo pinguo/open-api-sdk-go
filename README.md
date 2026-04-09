@@ -1,4 +1,4 @@
-# OPEN API Golang 签名 SDK
+# OPEN API Golang 签名 SDK-1
 
 ## 签名算法说明
 
