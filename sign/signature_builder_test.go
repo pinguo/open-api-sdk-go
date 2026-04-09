@@ -26,6 +26,29 @@ func TestSigRequest(t *testing.T) {
 	}
 }
 
+func TestSigRequestWithHeaders(t *testing.T) {
+    sb := NewSignatureBuilder("ak", "sk", 3600)
+    r, _ := http.NewRequest("GET", "https://api.open-platform.com/v1/test?x=1", nil)
+    // business headers that should participate in signing
+    r.Header.Set("PG-Client", "ios")
+    r.Header.Set("PG-Trace-Id", "abc")
+
+    // sign
+    if _, err := sb.SignRequest(context.Background(), r); err != nil {
+        t.Fatal(err)
+    }
+    // validate should pass
+    if err := sb.ValidateRequest(context.Background(), r); err != nil {
+        t.Fatalf("validate failed: %v", err)
+    }
+
+    // mutate a participating header -> should fail
+    r.Header.Set("PG-Client", "android")
+    if err := sb.ValidateRequest(context.Background(), r); err == nil {
+        t.Fatalf("expected validation failure when PG-Client changed")
+    }
+}
+
 func TestSignResponse(t *testing.T) {
 	sb := NewSignatureBuilder("ak", "sk", 3600)
 	request, _ := http.NewRequest("GET", "https://api.open-platform.com/v1/photos/generate?data=a", nil)

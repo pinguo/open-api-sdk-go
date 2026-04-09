@@ -17,6 +17,7 @@
 | `PG-Timestamp` | Unix 时间戳（秒） |
 | `PG-AccessKey` | 访问密钥 AK     |
 | `PG-Sign`      | 请求/响应签名值    |
+| `PG-*`         | 以 `PG-` 开头的自定义头（参与请求签名，除上述三者外）|
 
 ***
 
@@ -45,19 +46,33 @@ key1=value1key2=value2...keyN=valueN
 key1=value1key2=value2...{json body}
 ```
 
-**Step 3：构造最终签名串**
+**Step 3：构造 Header 签名串（仅请求）**
+
+从请求头中筛选参与签名的 Header：
+
+- 仅保留以 `PG-` 开头的 Header；
+- 排除 `PG-Timestamp`、`PG-AccessKey`、`PG-Sign`；
+- 将 Header Key 全部转为小写；
+- 按字典序升序排列后按 `key=value` 连续拼接，无分隔符。
+
+若没有符合条件的 Header，则该部分为空串。
+
+示例：`PG-Client: ios` 与 `PG-Trace-Id: abc` → `pg-client=iospg-trace-id=abc`
+
+**Step 4：构造最终签名串**
 
 ```
-finalText = URL路径 + 参数签名串 + Timestamp + SecretKey
+finalText = URL路径 + 参数签名串 + Header签名串 + Timestamp + AccessKey
 ```
 
-**Step 4：计算签名**
+**Step 5：计算签名（HMAC-SHA256）**
 
 ```
-Sign = SHA256(finalText)  // 十六进制小写字符串
+// data = finalText, key = SecretKey
+Sign = HMAC_SHA256(finalText, SecretKey)  // 十六进制小写
 ```
 
-**Step 5：设置请求头**
+**Step 6：设置请求头**
 
 ```
 PG-Timestamp: <timestamp>
@@ -65,7 +80,7 @@ PG-AccessKey: <ak>
 PG-Sign: <sign>
 ```
 
-### 示例一：application/x-www-form-urlencoded
+### 示例一：application/x-www-form-urlencoded（无 PG-* 业务头）
 
 **请求信息：**
 
@@ -95,23 +110,23 @@ Form  参数: a=b, d=c
 参数签名串 = "a=b" + "d=c" + "data=a" = "a=bd=cdata=a"
 ```
 
-**Step 3** 构造最终签名串：
+**Step 3-4** Header 签名串为空；构造最终签名串：
 
 ```
-finalText = "/v1/photos/generate" + "a=bd=cdata=a" + "1712563200" + "sk"
-          = "/v1/photos/generatea=bd=cdata=a1712563200sk"
+finalText = "/v1/photos/generate" + "a=bd=cdata=a" + "" + "1712563200" + "ak"
+          = "/v1/photos/generatea=bd=cdata=a1712563200ak"
 ```
 
-**Step 4** 计算签名：
+**Step 5** 计算签名（HMAC-SHA256，key=sk）：
 
 ```
-Sign = SHA256("/v1/photos/generatea=bd=cdata=a1712563200sk")
-     = "2860729940c7ea4b9caa722b5ec28bcf3d41e11a3487d68d8662aac397d361ea"
+Sign = HMAC_SHA256("/v1/photos/generatea=bd=cdata=a1712563200ak", "sk")
+     = "a7db995a4a7d86cf6997a4f1a74eb09968bf196187abd63d9f4010a2652d5896"
 ```
 
 ***
 
-### 示例二：application/json
+### 示例二：application/json（无 PG-* 业务头）
 
 **请求信息：**
 
@@ -141,18 +156,36 @@ Body 原文:  {"title":"测试","type":1}
            = "page=2zone=cn{\"title\":\"测试\",\"type\":1}"
 ```
 
-**Step 3** 构造最终签名串：
+**Step 3-4** Header 签名串为空；构造最终签名串：
 
 ```
-finalText = "/v1/photos/list" + "page=2zone=cn{\"title\":\"测试\",\"type\":1}" + "1712563200" + "sk"
-          = "/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200sk"
+finalText = "/v1/photos/list" + "page=2zone=cn{\"title\":\"测试\",\"type\":1}" + "" + "1712563200" + "ak"
+          = "/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200ak"
 ```
 
-**Step 4** 计算签名：
+**Step 5** 计算签名（HMAC-SHA256，key=sk）：
 
 ```
-Sign = SHA256("/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200sk")
-     = "64c73268fecb39f3c3d04a9831d9272ff206dcf68f24fa2cfc0163eeab6680f9"
+Sign = HMAC_SHA256("/v1/photos/listpage=2zone=cn{\"title\":\"测试\",\"type\":1}1712563200ak", "sk")
+     = "9440db90014d121b52260cf29039a32114f5c5865c877d8becd5d662e6555274"
+
+### 示例三：包含 PG-* 业务头
+
+```
+POST /v1/test
+PG-Client: ios
+PG-Trace-Id: abc
+
+<empty body>
+```
+
+Header 签名串：`pg-client=iospg-trace-id=abc`
+
+```
+finalText = "/v1/test" + "" + "pg-client=iospg-trace-id=abc" + "1712563200" + "ak"
+Sign = HMAC_SHA256(finalText, "sk")
+     = "e274807a9b4dad9c67ffe1e637ab2e512e1712003798652a93d36617bd4f7f8b"
+```
 ```
 
 ***
@@ -169,10 +202,10 @@ if now() - PG-Timestamp > expiredIn → 返回错误：timestamp expired
 
 **Step 2：** 按照与客户端相同的方式，从请求中提取参数，构造 `finalText`。
 
-**Step 3：** 计算 `SHA256(finalText)`，与请求头中的 `PG-Sign` 比对：
+**Step 3：** 计算 `HMAC_SHA256(finalText, SecretKey)`，与请求头中的 `PG-Sign` 比对：
 
 ```
-if SHA256(finalText) == PG-Sign → 验证通过
+if HMAC_SHA256(finalText, SecretKey) == PG-Sign → 验证通过
 else → 返回错误：signature validation failed
 ```
 
@@ -184,17 +217,16 @@ else → 返回错误：signature validation failed
 
 **Step 1：** 获取当前 Unix 时间戳 `ts`。
 
-**Step 2：** 构造最终签名串（响应无 Query/Form 参数，参数签名串为空）：
+**Step 2：** 构造最终签名串（响应无 Query/Form 参数与 Header 签名串）：
 
 ```
-finalText = URL路径 + "" + Body原文 + ts + SecretKey
-          = URL路径 + Body原文 + ts + SecretKey
+finalText = URL路径 + Body原文 + ts + AccessKey
 ```
 
-**Step 3：** 计算签名：
+**Step 3：** 计算签名（HMAC-SHA256）：
 
 ```
-Sign = SHA256(finalText)
+Sign = HMAC_SHA256(finalText, SecretKey)
 ```
 
 **Step 4：** 在响应头中设置：
@@ -219,15 +251,15 @@ Response Body: aaaaaaa
 **Step 2** 构造最终签名串：
 
 ```
-finalText = "/v1/photos/generate" + "aaaaaaa" + "1712563200" + "sk"
-          = "/v1/photos/generateaaaaaaa1712563200sk"
+finalText = "/v1/photos/generate" + "aaaaaaa" + "1712563200" + "ak"
+          = "/v1/photos/generateaaaaaaa1712563200ak"
 ```
 
-**Step 3** 计算签名：
+**Step 3** 计算签名（HMAC-SHA256，key=sk）：
 
 ```
-Sign = SHA256("/v1/photos/generateaaaaaaa1712563200sk")
-     = "03c102a51a81f2ae5f165fe3296079d7ab942f92dd7bd4b70e5e10a747ea1cf0"
+Sign = HMAC_SHA256("/v1/photos/generateaaaaaaa1712563200ak", "sk")
+     = "46acb18dd316b06a50a28e1110c6fa573994a320920bf47804a6d79a104882bc"
 ```
 
 ***
@@ -243,13 +275,13 @@ Sign = SHA256("/v1/photos/generateaaaaaaa1712563200sk")
 **Step 3：** 读取响应 Body，按照与服务端相同的方式构造 `finalText`：
 
 ```
-finalText = URL路径 + Body原文 + PG-Timestamp + SecretKey
+finalText = URL路径 + Body原文 + PG-Timestamp + AccessKey
 ```
 
-**Step 4：** 计算 `SHA256(finalText)`，与响应头中的 `PG-Sign` 比对：
+**Step 4：** 计算 `HMAC_SHA256(finalText, SecretKey)`，与响应头中的 `PG-Sign` 比对：
 
 ```
-if SHA256(finalText) == PG-Sign → 验证通过
+if HMAC_SHA256(finalText, SecretKey) == PG-Sign → 验证通过
 else → 返回错误：signature validation failed
 ```
 
@@ -266,14 +298,24 @@ func buildParamsSignatureText(params map[string]string, body string) string:
         paramStr += k + "=" + params[k]
     return paramStr + body
 
-// 请求签名
-func signRequest(path, params, body, ts, sk) string:
-    finalText = path + buildParamsSignatureText(params, body) + ts + sk
-    return SHA256(finalText)
+// Header 签名串构造（请求）
+func buildHeaderSignatureText(headers map[string]string) string:
+    pick only keys with prefix "pg-" except pg-timestamp, pg-accesskey, pg-sign
+    lower-case keys; sort; then concat as key=value without separator
 
-// 响应签名
-func signResponse(path, body, ts, sk) string:
-    finalText = path + body + ts + sk
-    return SHA256(finalText)
+// 请求签名（HMAC-SHA256）
+func signRequest(path, params, headers, body, ts, ak, sk) string:
+    finalText = path + buildParamsSignatureText(params, body) + buildHeaderSignatureText(headers) + ts + ak
+    return HMAC_SHA256(finalText, sk)
+
+// 响应签名（HMAC-SHA256）
+func signResponse(path, body, ts, ak, sk) string:
+    finalText = path + body + ts + ak
+    return HMAC_SHA256(finalText, sk)
+
+// HMAC-SHA256 参考实现
+func Sha256(data string, key string) string:
+    h = hmac.New(sha256.New, key)
+    h.Write([]byte(data))
+    return hex.EncodeToString(h.Sum(nil))
 ```
-
