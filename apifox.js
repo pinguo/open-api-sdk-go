@@ -47,11 +47,13 @@ class SignatureBuilder {
     }
 
     // Normalize GET params from pm.request.url.query.all() or plain object
+    // Spec requires: each key keeps the first value only (no arrays)
     getGETParams(params) {
         if (Array.isArray(params)) {
             const obj = {};
             params.forEach(item => {
-                if (item && !item.disabled && item.key) obj[item.key] = item.value ?? '';
+                if (!item || item.disabled || !item.key) return;
+                if (obj[item.key] === undefined) obj[item.key] = item.value ?? '';
             });
             return obj;
         }
@@ -64,7 +66,8 @@ class SignatureBuilder {
         const ct = (contentType || '').toLowerCase() || defaultContentType;
 
         // application/json: body raw string participates; not parsed
-        if (ct.includes("application/json") || (data && data.mode === 'raw')) {
+        // Follow spec strictly: rely on Content-Type only
+        if (ct.includes("application/json")) {
             let body = '';
             if (data) {
                 if (typeof data.raw === 'string') body = data.raw;
@@ -82,7 +85,8 @@ class SignatureBuilder {
                 : (data && Array.isArray(data.urlencoded) ? data.urlencoded : []);
             if (list.length) {
                 list.forEach(it => {
-                    if (it && !it.disabled && it.key) params[it.key] = it.value ?? '';
+                    if (!it || it.disabled || !it.key) return;
+                    if (params[it.key] === undefined) params[it.key] = it.value ?? '';
                 });
                 return ["", params];
             }
@@ -92,8 +96,23 @@ class SignatureBuilder {
             else if (data && typeof data.raw === 'string') raw = data.raw;
             if (raw) {
                 raw.split('&').forEach(pair => {
-                    const [k, v] = pair.split('=');
-                    if (k) params[k] = decodeURIComponent(v || '');
+                    if (!pair) return;
+                    const idx = pair.indexOf('=');
+                    let k, v;
+                    if (idx >= 0) {
+                        k = pair.slice(0, idx);
+                        v = pair.slice(idx + 1);
+                    } else {
+                        k = pair;
+                        v = '';
+                    }
+                    try {
+                        k = decodeURIComponent(k);
+                    } catch (_) {}
+                    try {
+                        v = decodeURIComponent(v);
+                    } catch (_) {}
+                    if (k && params[k] === undefined) params[k] = v;
                 });
             }
             return ["", params];
@@ -136,7 +155,7 @@ class SignatureBuilder {
         // 7) final text = METHOD + PATH + paramSig + headerSig + ts + AK
         const methodUpper = String(method || '').toUpperCase();
         const finalText = `${methodUpper}${path}${this.buildParamsSignatureText(queryParams, body)}${headerText}${ts}${this.accessKey}`;
-        console.log("finalText:"+finalText)
+        try { if (typeof console !== 'undefined' && console && console.log) console.log("finalText:" + finalText); } catch (_) {}
         const sign = this.hash(finalText);
 
         return { Sign: sign, FinalText: finalText, Timestamp: ts };
@@ -168,6 +187,4 @@ sr = singer.signRequest(pm.request.url.toString(), pm.request.method, pm.request
 pm.request.headers.add({key: "PG-Sign", value: sr.Sign});
 pm.request.headers.add({key: "PG-Timestamp", value: sr.Timestamp});
 pm.request.headers.add({key: "PG-AccessKey", value: ak});
-
-
 
